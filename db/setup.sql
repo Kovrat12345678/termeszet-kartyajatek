@@ -1,0 +1,43 @@
+CREATE DATABASE IF NOT EXISTS kartya_jatek CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE kartya_jatek;
+
+CREATE TABLE IF NOT EXISTS players (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    session_id VARCHAR(128) UNIQUE NOT NULL,
+    name VARCHAR(50) NOT NULL,
+    xp INT DEFAULT 100,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS player_cards (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    player_id INT NOT NULL,
+    card_type VARCHAR(50) NOT NULL,
+    quantity INT DEFAULT 1,
+    FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS rooms (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    code VARCHAR(10) UNIQUE NOT NULL,
+    player1_id INT NOT NULL,
+    player2_id INT DEFAULT NULL,
+    is_ai TINYINT(1) DEFAULT 0,
+    p1_char VARCHAR(50) DEFAULT 'kiraly',
+    p2_char VARCHAR(50) DEFAULT 'bot',
+    p1_hp INT DEFAULT 150,
+    p2_hp INT DEFAULT 150,
+    p1_hand TEXT DEFAULT NULL,
+    p2_hand TEXT DEFAULT NULL,
+    p1_deck TEXT DEFAULT NULL,
+    p2_deck TEXT DEFAULT NULL,
+    p1_bleed INT DEFAULT 0,
+    p2_bleed INT DEFAULT 0,
+    current_turn INT DEFAULT 1,
+    status VARCHAR(20) DEFAULT 'waiting',
+    winner INT DEFAULT NULL,
+    last_action TEXT DEFAULT NULL,
+    last_played_card VARCHAR(50) DEFAULT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (player1_id) REFERENCES players(id)
+);
