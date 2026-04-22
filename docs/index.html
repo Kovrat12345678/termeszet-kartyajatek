@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>🌿 Természet Kártyajáték</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+/* === SCREENS === */
+.screen { display:none; }
+.screen.active { display:flex; }
+
+/* === GAME SCREEN LAYOUT === */
+#screen-game {
+    flex-direction:column; padding:8px; gap:6px;
+    height:100vh; overflow:hidden; align-items:stretch;
+}
+#opp-zone { display:flex; justify-content:space-between; align-items:flex-start; padding:4px; gap:8px; flex-shrink:0; }
+#mid-zone  { flex:1; display:flex; flex-direction:column; justify-content:center; gap:6px; padding:0 8px; min-height:0; }
+#my-zone   { flex-shrink:0; padding:4px; }
+
+.card-back {
+    width:60px; height:88px; border-radius:8px;
+    background:linear-gradient(135deg,#1a3a1a,#0d2010);
+    border:1px solid #2d6a2d;
+    display:flex; align-items:center; justify-content:center;
+    font-size:1.2rem; opacity:0.6;
+}
+#opp-hand-backs { display:flex; gap:5px; }
+
+/* === LOG === */
+#log-list { list-style:none; padding:0; margin:0; }
+#log-list li { font-size:.75rem; color:var(--text-dim); padding:2px 0; border-bottom:1px solid rgba(255,255,255,0.03); }
+#log-list li:first-child { color:var(--gold); font-weight:600; font-size:.82rem; }
+
+/* === CHAR SELECT === */
+#screen-chars { flex-direction:column; align-items:center; justify-content:center; padding:20px; }
+
+/* === MENU SCREEN === */
+#screen-menu { flex-direction:column; align-items:center; justify-content:center; }
+
+/* === SHOP SCREEN === */
+#screen-shop { flex-direction:column; align-items:center; padding:20px; overflow-y:auto; }
+#screen-cards { flex-direction:column; align-items:center; padding:20px; overflow-y:auto; }
+</style>
+</head>
+<body>
+<div id="particles"></div>
+
+<!-- ===== SCREEN: MENU ===== -->
+<div id="screen-menu" class="screen page active">
+    <div class="panel" style="max-width:420px">
+        <div style="text-align:center;margin-bottom:28px">
+            <div class="logo">🌿 TERMÉSZET</div>
+            <div class="logo-sub">Kártyajáték</div>
+        </div>
+        <div id="menu-player-info" style="display:none;text-align:center;margin-bottom:20px">
+            <div style="color:var(--text-dim);font-size:.8rem">Üdvözöljük,</div>
+            <div id="menu-name" style="font-size:1.4rem;font-weight:900"></div>
+            <div class="xp-badge" id="menu-xp" style="margin-top:6px">⭐ 0 XP</div>
+        </div>
+        <div id="menu-name-form">
+            <div class="input-group">
+                <label>Neved</label>
+                <input type="text" id="name-input" placeholder="Írd be a neved..." maxlength="25" autocomplete="off">
+            </div>
+            <button class="btn-main btn-full" onclick="submitName()">🎮 Belépés</button>
+            <div id="name-err" style="color:#fca5a5;font-size:.8rem;text-align:center;margin-top:6px;display:none"></div>
+        </div>
+        <div id="menu-buttons" class="menu-buttons" style="display:none">
+            <button class="btn-main btn-full" onclick="showScreen('screen-chars')">⚔️ Csata Indítása</button>
+            <button class="btn-secondary btn-full" onclick="showScreen('screen-shop')">🛒 Shop</button>
+            <button class="btn-secondary btn-full" onclick="showScreen('screen-cards')">📦 Kártyáim</button>
+            <button class="btn-secondary btn-sm" style="color:var(--text-dim)" onclick="changeName()">✏️ Név módosítása</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== SCREEN: CHAR SELECT ===== -->
+<div id="screen-chars" class="screen page">
+    <div class="panel" style="max-width:580px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+            <button class="btn-secondary btn-sm" onclick="showScreen('screen-menu')">← Vissza</button>
+            <h1 class="page-title" style="margin:0">⚔️ <span>Karakter</span> Választó</h1>
+        </div>
+        <div class="char-grid" id="char-select-grid"></div>
+        <div class="gap"></div>
+        <button class="btn-main btn-full" id="start-battle-btn" onclick="startBattle()">🤖 Csata AI ellen!</button>
+    </div>
+</div>
+
+<!-- ===== SCREEN: GAME ===== -->
+<div id="screen-game" class="screen">
+
+    <!-- Opponent -->
+    <div id="opp-zone">
+        <div class="hp-wrapper">
+            <div class="hp-header">
+                <span class="char-emoji" id="opp-char-emoji">👑</span>
+                <span class="player-name" id="opp-char-name">AI</span>
+                <span class="bleed-badge" id="opp-bleed-badge"></span>
+            </div>
+            <div class="hp-bar"><div class="hp-fill" id="opp-hp-fill" style="width:100%"></div></div>
+            <div class="hp-text" id="opp-hp-text">200 / 200</div>
+        </div>
+        <div id="opp-hand-backs"></div>
+    </div>
+
+    <!-- Mid -->
+    <div id="mid-zone">
+        <ul id="log-list"><li style="color:var(--text-dim)">Csata kezdődik...</li></ul>
+        <div class="turn-indicator my-turn" id="turn-ind">⚔️ A TE KÖRÖD</div>
+    </div>
+
+    <!-- My area -->
+    <div id="my-zone">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <div class="hp-wrapper" style="flex:1;max-width:280px">
+                <div class="hp-header">
+                    <span class="char-emoji" id="my-char-emoji">🌿</span>
+                    <span class="player-name" id="my-char-name">Te</span>
+                    <span class="bleed-badge" id="my-bleed-badge"></span>
+                </div>
+                <div class="hp-bar"><div class="hp-fill" id="my-hp-fill" style="width:100%"></div></div>
+                <div class="hp-text" id="my-hp-text">100 / 100</div>
+            </div>
+            <button class="btn-secondary btn-sm" onclick="showScreen('screen-menu')" style="margin-left:8px">🏠</button>
+        </div>
+        <div id="hand-container"></div>
+    </div>
+</div>
+
+<!-- ===== SCREEN: SHOP ===== -->
+<div id="screen-shop" class="screen">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;width:100%;max-width:700px">
+        <button class="btn-secondary btn-sm" onclick="showScreen('screen-menu')">← Vissza</button>
+        <h1 class="page-title" style="margin:0">🛒 <span>Shop</span></h1>
+        <span class="xp-badge" id="shop-xp" style="margin-left:auto">⭐ 0 XP</span>
+    </div>
+    <div id="shop-msg" class="shop-msg" style="width:100%;max-width:700px"></div>
+    <div class="shop-grid" style="width:100%;max-width:700px">
+        <div class="pack-card" style="--pack-glow:rgba(156,163,175,0.1);--pack-border:#6b7280" onclick="buyPack('kis')">
+            <div class="pack-emoji">👜</div><div class="pack-name">Kis Zacskó</div>
+            <div class="pack-desc">3 közönséges kártya</div><div class="pack-count">📦 3 kártya</div>
+            <div class="pack-xp">50 XP</div><button class="btn-secondary btn-sm" data-pack="kis">Megvesz</button>
+        </div>
+        <div class="pack-card" style="--pack-glow:rgba(59,130,246,0.1);--pack-border:#3b82f6" onclick="buyPack('kozepes')">
+            <div class="pack-emoji">🎒</div><div class="pack-name">Közepes Zacskó</div>
+            <div class="pack-desc">4 kártya, közte ritka!</div><div class="pack-count">📦 4 kártya</div>
+            <div class="pack-xp">100 XP</div><button class="btn-secondary btn-sm" data-pack="kozepes">Megvesz</button>
+        </div>
+        <div class="pack-card" style="--pack-glow:rgba(168,85,247,0.1);--pack-border:#a855f7" onclick="buyPack('nagy')">
+            <div class="pack-emoji">💼</div><div class="pack-name">Nagy Zacskó</div>
+            <div class="pack-desc">5 kártya, garantált ritka!</div><div class="pack-count">📦 5 kártya</div>
+            <div class="pack-xp">200 XP</div><button class="btn-main btn-sm" data-pack="nagy">Megvesz</button>
+        </div>
+        <div class="pack-card" style="--pack-glow:rgba(251,191,36,0.15);--pack-border:#fbbf24;background:rgba(20,10,0,0.7)" onclick="buyPack('kiraly')">
+            <div class="pack-emoji" style="filter:drop-shadow(0 0 12px gold)">👑</div>
+            <div class="pack-name" style="color:var(--gold)">Király Zacskó</div>
+            <div class="pack-desc">Legendás kártyák!</div><div class="pack-count">📦 5 kártya</div>
+            <div class="pack-xp" style="font-size:1.2rem">500 XP</div>
+            <button class="btn-main btn-sm" style="background:linear-gradient(135deg,#92400e,#fbbf24)" data-pack="kiraly">👑 Megvesz</button>
+        </div>
+    </div>
+    <!-- Pack result overlay -->
+    <div class="overlay" id="pack-result" style="display:none"></div>
+</div>
+
+<!-- ===== SCREEN: MY CARDS ===== -->
+<div id="screen-cards" class="screen">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;width:100%;max-width:700px">
+        <button class="btn-secondary btn-sm" onclick="showScreen('screen-menu')">← Vissza</button>
+        <h1 class="page-title" style="margin:0">📦 <span>Kártyáim</span></h1>
+    </div>
+    <div id="my-cards-grid" style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;width:100%;max-width:700px;padding-bottom:40px"></div>
+</div>
+
+<!-- Game Over Overlay -->
+<div class="overlay" id="gameover-overlay" style="display:none"></div>
+
+<script src="js/storage.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/music.js"></script>
+<script>
+// ===== SCREENS =====
+function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    if (id === 'screen-menu')  refreshMenu();
+    if (id === 'screen-chars') renderCharSelect();
+    if (id === 'screen-shop')  refreshShop();
+    if (id === 'screen-cards') renderMyCards();
+}
+
+// ===== MENU =====
+let player = null;
+
+function refreshMenu() {
+    player = Store.getPlayer();
+    if (player) {
+        document.getElementById('menu-name-form').style.display = 'none';
+        document.getElementById('menu-buttons').style.display   = 'flex';
+        document.getElementById('menu-player-info').style.display = 'block';
+        document.getElementById('menu-name').textContent = player.name;
+        document.getElementById('menu-xp').textContent  = '⭐ ' + player.xp + ' XP';
+    } else {
+        document.getElementById('menu-name-form').style.display = 'block';
+        document.getElementById('menu-buttons').style.display   = 'none';
+        document.getElementById('menu-player-info').style.display = 'none';
+    }
+}
+
+function submitName() {
+    const n = document.getElementById('name-input').value.trim();
+    if (!n || n.length < 2) { showNameErr('Adj meg egy nevet (min 2 karakter)!'); return; }
+    player = Store.initPlayer(n);
+    refreshMenu();
+}
+
+function changeName() {
+    document.getElementById('menu-name-form').style.display = 'block';
+    document.getElementById('menu-buttons').style.display   = 'none';
+    document.getElementById('menu-player-info').style.display = 'none';
+    document.getElementById('name-input').value = player?.name || '';
+}
+
+function showNameErr(msg) {
+    const e = document.getElementById('name-err');
+    e.textContent = msg; e.style.display = 'block';
+    setTimeout(() => e.style.display = 'none', 3000);
+}
+
+document.getElementById('name-input').addEventListener('keydown', e => { if(e.key==='Enter') submitName(); });
+
+// ===== CHAR SELECT =====
+let selectedChar = 'kiraly';
+
+function renderCharSelect() {
+    const grid = document.getElementById('char-select-grid');
+    grid.innerHTML = '';
+    Object.entries(CHAR_DATA).forEach(([key, c]) => {
+        const el = document.createElement('div');
+        el.className = 'char-card' + (key === selectedChar ? ' selected' : '');
+        el.dataset.key = key;
+        el.innerHTML = `<span class="big-emoji">${c.emoji}</span><span class="char-name">${c.name}</span><span class="char-hp">❤️ ${c.hp} HP</span><span class="char-pass">${c.passiveDesc}</span>`;
+        el.onclick = () => {
+            selectedChar = key;
+            document.querySelectorAll('.char-card').forEach(x => x.classList.remove('selected'));
+            el.classList.add('selected');
+        };
+        grid.appendChild(el);
+    });
+}
+
+function startBattle() {
+    if (!player) { showScreen('screen-menu'); return; }
+    newGame(selectedChar);
+    showScreen('screen-game');
+    render();
+}
+
+// ===== RENDER GAME =====
+function render() {
+    if (!G) return;
+    updateHpBar('my',  G.p1);
+    updateHpBar('opp', G.p2);
+
+    document.getElementById('my-char-emoji').textContent  = G.p1.data.emoji;
+    document.getElementById('my-char-name').textContent   = (player?.name || 'Te');
+    document.getElementById('opp-char-emoji').textContent = G.p2.data.emoji;
+    document.getElementById('opp-char-name').textContent  = 'AI - ' + G.p2.data.name;
+
+    document.getElementById('my-bleed-badge').textContent  = G.p1.bleed > 0 ? '🩸×'+G.p1.bleed : '';
+    document.getElementById('opp-bleed-badge').textContent = G.p2.bleed > 0 ? '🩸×'+G.p2.bleed : '';
+
+    // Turn indicator
+    const ti = document.getElementById('turn-ind');
+    if (!G.over) {
+        ti.textContent = G.turn === 1 ? '⚔️ A TE KÖRÖD' : '🤖 AI gondolkodik...';
+        ti.className = 'turn-indicator ' + (G.turn===1?'my-turn':'opp-turn');
+    }
+
+    // Log
+    const logEl = document.getElementById('log-list');
+    logEl.innerHTML = G.log.map(l => `<li>${l}</li>`).join('') || '<li style="color:var(--text-dim)">Csata kezdődik...</li>';
+
+    // Hand
+    renderHand();
+
+    // Opp hand backs
+    const backs = document.getElementById('opp-hand-backs');
+    backs.innerHTML = '';
+    for (let i=0;i<Math.min(G.p2.hand.length,7);i++) {
+        const d=document.createElement('div'); d.className='card-back'; d.textContent='🌿';
+        backs.appendChild(d);
+    }
+
+    // Game over
+    if (G.over) showGameOver();
+}
+
+function updateHpBar(who, p) {
+    const pct = Math.max(0, Math.min(100, (p.hp / p.maxHp) * 100));
+    const fill = document.getElementById(who+'-hp-fill');
+    const txt  = document.getElementById(who+'-hp-text');
+    fill.style.width = pct + '%';
+    fill.style.background = pct > 50 ? 'linear-gradient(90deg,#22c55e,#16a34a)' : pct > 25 ? 'linear-gradient(90deg,#f59e0b,#d97706)' : 'linear-gradient(90deg,#ef4444,#b91c1c)';
+    txt.textContent = p.hp + ' / ' + p.maxHp + ' HP';
+}
+
+function renderHand() {
+    const container = document.getElementById('hand-container');
+    container.innerHTML = '';
+    if (!G?.p1?.hand) return;
+    const canPlay = G.turn === 1 && !G.over;
+    G.p1.hand.forEach((cardType, i) => {
+        const c = CARD_DATA[cardType];
+        if (!c) return;
+        const r = { common:{bg:'#1f2937',border:'#4b5563',glow:'rgba(156,163,175,0.2)'}, uncommon:{bg:'#1a2744',border:'#3b82f6',glow:'rgba(59,130,246,0.3)'}, rare:{bg:'#2d1a3a',border:'#a855f7',glow:'rgba(168,85,247,0.4)'}, legendary:{bg:'#2d1a0a',border:'#f59e0b',glow:'rgba(245,158,11,0.5)'} }[c.rarity];
+        const el = document.createElement('div');
+        el.className = 'card' + (canPlay ? ' playable' : '');
+        el.dataset.idx = i;
+        el.style.cssText = `--card-border:${r.border};--card-bg:${r.bg};--card-glow:${r.glow};`;
+        el.innerHTML = `<div class="card-rarity">${c.rarity.toUpperCase()}</div><div class="card-emoji">${c.emoji}</div><div class="card-name">${c.name}</div><div class="card-stats">${c.dmg?`<span class="stat dmg">⚔️${c.dmg}</span>`:''} ${c.heal?`<span class="stat heal">💚${c.heal}</span>`:''} ${c.bleed?`<span class="stat bleed">🩸${c.bleed}</span>`:''}</div><div class="card-desc">${c.desc}</div>`;
+        if (canPlay) {
+            el.addEventListener('click', () => {
+                el.classList.add('card-play-anim');
+                setTimeout(() => { playCard(1, i); render(); }, 300);
+            });
+        }
+        container.appendChild(el);
+    });
+}
+
+function showGameOver() {
+    const won = G.winner === 1;
+    const xpGain = won ? 50 : 20;
+    const newXp = Store.addXp(xpGain);
+    const overlay = document.getElementById('gameover-overlay');
+    overlay.innerHTML = `<div class="gameover-box ${won?'win':'lose'}">
+        <div class="gameover-emoji">${won?'🏆':'💀'}</div>
+        <h1>${won?'GYŐZELEM!':'VERESÉG!'}</h1>
+        <p style="color:var(--text-dim)">+${xpGain} XP → összesen: <strong style="color:var(--gold)">${newXp} XP</strong></p>
+        <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;justify-content:center">
+            <button class="btn-main" onclick="startBattle()">🔄 Újra</button>
+            <button class="btn-secondary" onclick="hideGameOver()">🏠 Főmenü</button>
+        </div>
+    </div>`;
+    overlay.style.display = 'flex';
+}
+
+function hideGameOver() {
+    document.getElementById('gameover-overlay').style.display = 'none';
+    showScreen('screen-menu');
+}
+
+// ===== SHOP =====
+function refreshShop() {
+    player = Store.getPlayer();
+    document.getElementById('shop-xp').textContent = '⭐ ' + (player?.xp || 0) + ' XP';
+}
+
+function buyPack(packId) {
+    const pack = SHOP_PACKS[packId];
+    if (!pack) return;
+    player = Store.getPlayer();
+    if (!player || player.xp < pack.xp) {
+        showShopMsg('Nincs elég XP! Kell: ' + pack.xp + ', nálad: ' + (player?.xp||0), 'error'); return;
+    }
+    if (!Store.spendXp(pack.xp)) return;
+    const pool = pack.pool;
+    const got = [];
+    for (let i=0;i<pack.count;i++) got.push(pool[Math.floor(Math.random()*pool.length)]);
+    Store.addCards(got);
+
+    player = Store.getPlayer();
+    document.getElementById('shop-xp').textContent = '⭐ ' + player.xp + ' XP';
+    refreshMenu();
+    showPackResult(got, pack.name, player.xp);
+}
+
+function showPackResult(cards, packName, xp) {
+    const overlay = document.getElementById('pack-result');
+    const list = cards.map(c => {
+        const cd = CARD_DATA[c];
+        return cd ? `<div class="result-card result-card-in" style="--card-glow:${cd.glow?'rgba(200,200,200,0.2)':'rgba(200,200,200,0.2)'}"><span class="big-emoji">${cd.emoji}</span><small>${cd.name}</small></div>` : '';
+    }).join('');
+    overlay.innerHTML = `<div class="pack-result-box"><h2>📦 ${packName}</h2><div class="result-cards">${list}</div><p>Maradék XP: <strong>${xp}</strong></p><button class="btn-main" onclick="document.getElementById('pack-result').style.display='none'">OK</button></div>`;
+    overlay.style.display = 'flex';
+}
+
+function showShopMsg(msg, type) {
+    const el = document.getElementById('shop-msg');
+    el.textContent = msg; el.className = 'shop-msg ' + type; el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 3000);
+}
+
+// ===== MY CARDS =====
+function renderMyCards() {
+    const cards = Store.getCards();
+    const grid = document.getElementById('my-cards-grid');
+    grid.innerHTML = '';
+    if (!cards.length) { grid.innerHTML = '<p style="color:var(--text-dim)">Még nincs kártyád. Menj a shopba!</p>'; return; }
+    const counts = {};
+    cards.forEach(c => counts[c] = (counts[c]||0) + 1);
+    Object.entries(counts).forEach(([type, qty], i) => {
+        const c = CARD_DATA[type];
+        if (!c) return;
+        const r = { common:{bg:'#1f2937',border:'#4b5563',glow:'rgba(156,163,175,0.2)'}, uncommon:{bg:'#1a2744',border:'#3b82f6',glow:'rgba(59,130,246,0.3)'}, rare:{bg:'#2d1a3a',border:'#a855f7',glow:'rgba(168,85,247,0.4)'}, legendary:{bg:'#2d1a0a',border:'#f59e0b',glow:'rgba(245,158,11,0.5)'} }[c.rarity];
+        const el = document.createElement('div');
+        el.className = 'card';
+        el.style.cssText = `--card-border:${r.border};--card-bg:${r.bg};--card-glow:${r.glow};position:relative`;
+        el.innerHTML = `<div class="card-rarity">${c.rarity.toUpperCase()}</div><div class="card-emoji">${c.emoji}</div><div class="card-name">${c.name}</div><div class="card-stats">${c.dmg?`<span class="stat dmg">⚔️${c.dmg}</span>`:''} ${c.heal?`<span class="stat heal">💚${c.heal}</span>`:''} ${c.bleed?`<span class="stat bleed">🩸${c.bleed}</span>`:''}</div><div class="card-desc">${c.desc}</div><div style="position:absolute;top:4px;right:4px;background:var(--gold);color:#000;font-size:.6rem;font-weight:900;padding:2px 5px;border-radius:6px">×${qty}</div>`;
+        grid.appendChild(el);
+    });
+}
+
+// ===== PARTICLES =====
+(function(){
+    const c = document.getElementById('particles');
+    const em = ['🍃','🍂','🌿','🌲','🪨','🌱'];
+    setInterval(() => {
+        const p = document.createElement('div');
+        p.className = 'particle';
+        p.textContent = em[Math.floor(Math.random()*em.length)];
+        p.style.left = Math.random()*100+'vw';
+        p.style.animationDuration = (4+Math.random()*5)+'s';
+        p.style.fontSize = (10+Math.random()*14)+'px';
+        c.appendChild(p);
+        setTimeout(() => p.remove(), 9000);
+    }, 500);
+})();
+
+// Init on load
+refreshMenu();
+</script>
+</body>
+</html>
